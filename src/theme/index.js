@@ -40,6 +40,50 @@ export const COLORS = {
   TABLE_FREE: "#4CAF50", // Mesa libre (verde)
   TABLE_OCCUPIED: "#F44336", // Mesa ocupada (rojo)
   TABLE_PENDING: "#FF9800", // Mesa pendiente (naranja)
+
+   PRIMARY: "#F5A623",
+  PRIMARY_DARK: "#E89A1F",
+  PRIMARY_LIGHT: "#FFC857",
+
+  SECONDARY: "#3D2817",
+  SECONDARY_LIGHT: "#5C4033",
+
+  BACKGROUND: "#F5E6D3",
+  BACKGROUND_DARK: "#2B2520",
+
+  TEXT_PRIMARY: "#3D2817",
+  TEXT_SECONDARY: "#6B5B4A",
+  TEXT_LIGHT: "#F5E6D3",
+  TEXT_WHITE: "#FFFFFF",
+
+  SUCCESS: "#4CAF50",
+  WARNING: "#FF9800",
+  ERROR: "#F44336",
+  INFO: "#2196F3",
+
+  BORDER: "#DDD6CC",
+  DISABLED: "#CCCCCC",
+  WHITE: "#FFFFFF",
+  BLACK: "#000000",
+
+  TABLE_FREE: "#4CAF50",
+  TABLE_OCCUPIED: "#F44336",
+  TABLE_PENDING: "#FF9800",
+
+  // Alias para LoginScreen
+  primary: "#F5A623",
+  primaryBorder: "#E89A1F",
+  primaryLight: "#FFC857",
+  backgroundDark: "#2B2520",
+  surface: "#F5E6D3",
+  surfaceWhite: "#FFFFFF",
+  textDark: "#2B2520",
+  textBrown: "#5C4033",
+  textInactive: "#7A4800",
+  textLabel: "#8B6000",
+  textPlaceholder: "#A78B5F",
+  primaryInput: "#D4A843",
+  error: "#F44336",
 };
 
 // ─── TIPOGRAFÍA ───

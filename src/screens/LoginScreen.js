@@ -14,6 +14,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { COLORS, FONTS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../theme';
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "../config/firebaseConfig";
 
 // NOTA: Para usar Oswald y Nunito en React Native, instalar:
 // npx expo install expo-font @expo-google-fonts/oswald @expo-google-fonts/nunito
@@ -54,41 +57,51 @@ export default function LoginScreen({ navigation }) {
   };
 
   // ─── Login ───
-  const handleLogin = async () => {
-    if (!validate()) return;
-    setIsLoading(true);
+const handleLogin = async () => {
+  if (!validate()) return;
+  setIsLoading(true);
 
-    try {
-      // TODO: Integrar Firebase Authentication
-      // import AuthService from '../services/AuthService';
-      // const user = await AuthService.signIn(email, password);
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+  try {
+    // 🔐 Login real
+    const cred = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
 
-      switch (selectedRole) {
-        case 'Admin':
-          navigation.replace('AdminDashboard');
-          break;
-        case 'Mesero':
-          navigation.replace('MeseroModule');
-          break;
-        case 'Cliente':
-          navigation.replace('ClienteModule');
-          break;
-      }
-    } catch (error) {
-      let message = 'Error al iniciar sesión';
-      if (error.code === 'auth/user-not-found') {
-        message = 'No existe una cuenta con este correo';
-      } else if (error.code === 'auth/wrong-password') {
-        message = 'Contraseña incorrecta';
-      } else if (error.code === 'auth/too-many-requests') {
-        message = 'Demasiados intentos. Intenta más tarde';
-      }
-      Alert.alert('Error', message);
-    } finally {
-      setIsLoading(false);
+    // 📦 Traer datos del usuario
+    const userDoc = await getDoc(doc(db, "usuarios", cred.user.uid));
+
+    if (!userDoc.exists()) {
+      Alert.alert("Error", "Usuario no registrado en base de datos");
+      return;
     }
-  };
+
+    const data = userDoc.data();
+
+    // 🚀 Redirección por rol
+    if (data.rol === "mesero") {
+      navigation.replace("MeseroModule");
+    } else if (data.rol === "cliente") {
+      Alert.alert("Cliente", "Módulo cliente no disponible aún");
+    } else {
+      Alert.alert("Error", "Rol no reconocido");
+    }
+
+  } catch (error) {
+    let message = "Error al iniciar sesión";
+
+    if (error.code === "auth/user-not-found") {
+      message = "Usuario no existe";
+    } else if (error.code === "auth/wrong-password") {
+      message = "Contraseña incorrecta";
+    }
+
+    Alert.alert("Error", message);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ─── Render ───
   return (
@@ -220,26 +233,16 @@ export default function LoginScreen({ navigation }) {
 
             {/* Forgot password */}
             <TouchableOpacity
-              style={styles.forgotBtn}
-              onPress={() => {
-                Alert.alert(
-                  'Recuperar contraseña',
-                  'Se enviará un enlace de recuperación a tu correo electrónico.',
-                );
-              }}
-              disabled={isLoading}
+            onPress={() => navigation.navigate("CrearMesero")}
             >
-              <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+              <Text>Crear Mesero</Text>
             </TouchableOpacity>
 
             {/* Link a registro (para clientes) */}
             {selectedRole === 'Cliente' && (
               <TouchableOpacity
                 style={styles.registerBtn}
-                onPress={() => {
-                  // TODO: navigation.navigate('RegisterCliente');
-                  Alert.alert('Registro', 'Pantalla de registro próximamente');
-                }}
+                onPress={() => navigation.navigate("RegisterCliente")}
                 disabled={isLoading}
               >
                 <Text style={styles.registerText}>
@@ -247,6 +250,7 @@ export default function LoginScreen({ navigation }) {
                   <Text style={styles.registerLink}>Regístrate aquí</Text>
                 </Text>
               </TouchableOpacity>
+              
             )}
           </View>
 

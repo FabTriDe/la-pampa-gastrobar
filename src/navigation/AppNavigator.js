@@ -12,6 +12,7 @@ import {
   LoginScreen,
   RegisterClienteScreen,
   CrearMeseroScreen,
+  MeseroModuleScreen,
 } from "../screens";
 import { COLORS } from "../theme";
 
@@ -19,7 +20,6 @@ const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   return (
-    <NavigationContainer>
       <Stack.Navigator
         initialRouteName="Login"
         screenOptions={{
@@ -37,6 +37,7 @@ export default function AppNavigator() {
 
         {/* ── Admin ── */}
         <Stack.Screen name="CrearMesero" component={CrearMeseroScreen} />
+        <Stack.Screen name="MeseroModule" component={MeseroModuleScreen} />
 
         {/* ── Módulos principales (por implementar) ── */}
         {/* 
@@ -45,6 +46,5 @@ export default function AppNavigator() {
         <Stack.Screen name="ClienteModule" component={ClienteModule} />
         */}
       </Stack.Navigator>
-    </NavigationContainer>
   );
 }

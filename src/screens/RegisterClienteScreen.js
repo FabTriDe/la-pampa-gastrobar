@@ -14,6 +14,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { COLORS, BORDER_RADIUS } from '../theme';
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../config/firebaseConfig";
 
 export default function RegisterClienteScreen({ navigation }) {
   const [form, setForm] = useState({
@@ -58,33 +61,47 @@ export default function RegisterClienteScreen({ navigation }) {
   };
 
   // ─── Registro ───
-  const handleRegister = async () => {
-    if (!validate()) return;
-    setIsLoading(true);
-    try {
-      // TODO: Firebase Auth + Firestore
-      // const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-      // await setDoc(doc(db, 'usuarios', cred.user.uid), {
-      //   nombre: form.nombre,
-      //   correo: form.email,
-      //   telefono: form.telefono,
-      //   rol: 'cliente',
-      //   creadoEn: serverTimestamp(),
-      // });
+const handleRegister = async () => {
+  if (!validate()) return;
 
-      await new Promise((r) => setTimeout(r, 1500));
-      Alert.alert('Cuenta creada', 'Ya puedes iniciar sesión.', [
-        { text: 'Ir al login', onPress: () => navigation.replace('Login') },
-      ]);
-    } catch (error) {
-      let msg = 'Error al crear la cuenta';
-      if (error.code === 'auth/email-already-in-use') msg = 'Ya existe una cuenta con este correo';
-      else if (error.code === 'auth/weak-password') msg = 'La contraseña es muy débil';
-      Alert.alert('Error', msg);
-    } finally {
-      setIsLoading(false);
+  setIsLoading(true);
+
+  try {
+    const cred = await createUserWithEmailAndPassword(
+      auth,
+      form.email,
+      form.password
+    );
+
+    await setDoc(doc(db, "usuarios", cred.user.uid), {
+      nombre: form.nombre,
+      correo: form.email,
+      telefono: form.telefono,
+      rol: "cliente",
+      creadoEn: serverTimestamp(),
+    });
+
+    Alert.alert("Cuenta creada", "Usuario registrado correctamente.", [
+      { text: "Ir al login", onPress: () => navigation.replace("Login") },
+    ]);
+  } catch (error) {
+    console.log(error);
+
+    let msg = "Error al crear la cuenta";
+
+    if (error.code === "auth/email-already-in-use") {
+      msg = "Ya existe una cuenta con este correo";
+    } else if (error.code === "auth/weak-password") {
+      msg = "La contraseña es muy débil";
+    } else if (error.code === "auth/invalid-email") {
+      msg = "El correo no es válido";
     }
-  };
+
+    Alert.alert("Error", msg);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // ─── Campo reutilizable ───
   const Field = ({ label, field, placeholder, keyboardType, secure, autoCapitalize }) => (

@@ -14,6 +14,9 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { COLORS, BORDER_RADIUS } from "../theme";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { auth, db } from "../config/firebaseConfig";
 
 export default function CrearMeseroScreen({ navigation }) {
   const [form, setForm] = useState({
@@ -57,51 +60,37 @@ export default function CrearMeseroScreen({ navigation }) {
     setIsLoading(true);
 
     try {
-      // TODO: Crear cuenta de mesero via Firebase Admin o Cloud Function
-      //
-      // OPCIÓN A — Firebase Admin SDK (desde un backend Node.js):
-      // const response = await fetch('https://tu-api.com/crear-mesero', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-      //   body: JSON.stringify({ ...form, rol: 'mesero' }),
-      // });
-      //
-      // OPCIÓN B — Crear con createUserWithEmailAndPassword desde el admin
-      // (Nota: esto cierra la sesión del admin, hay que volver a loguearlo)
-      // const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-      // await setDoc(doc(db, 'usuarios', cred.user.uid), {
-      //   nombre: form.nombre,
-      //   correo: form.email,
-      //   telefono: form.telefono,
-      //   rol: 'mesero',
-      //   creadoPor: adminUid,
-      //   creadoEn: serverTimestamp(),
-      //   activo: true,
-      // });
-      // // Re-autenticar admin...
-      //
-      // OPCIÓN C (recomendada) — Cloud Function que crea el usuario:
-      // const crearMesero = httpsCallable(functions, 'crearMesero');
-      // await crearMesero({ ...form });
+  const cred = await createUserWithEmailAndPassword(
+    auth,
+    form.email,
+    form.password
+  );
 
-      await new Promise((r) => setTimeout(r, 1500));
+  await setDoc(doc(db, "usuarios", cred.user.uid), {
+    nombre: form.nombre,
+    correo: form.email,
+    telefono: form.telefono,
+    rol: "mesero",
+    activo: true,
+    creadoEn: serverTimestamp(),
+  });
 
-      Alert.alert(
-        "Mesero creado",
-        `La cuenta de ${form.nombre} ha sido creada.\n\nCredenciales:\nCorreo: ${form.email}\nContraseña: ${form.password}\n\nComparte estos datos con el mesero.`,
-        [
-          {
-            text: "Crear otro",
-            onPress: () =>
-              setForm({ nombre: "", email: "", telefono: "", password: "" }),
-          },
-          {
-            text: "Volver al panel",
-            onPress: () => navigation.goBack(),
-          },
-        ],
-      );
-    } catch (error) {
+  Alert.alert(
+    "Mesero creado",
+    `La cuenta de ${form.nombre} ha sido creada.\n\nCorreo: ${form.email}\nContraseña: ${form.password}`,
+    [
+      {
+        text: "Crear otro",
+        onPress: () =>
+          setForm({ nombre: "", email: "", telefono: "", password: "" }),
+      },
+      {
+        text: "Volver",
+        onPress: () => navigation.goBack(),
+      },
+    ]
+  );
+} catch (error) {
       let msg = "Error al crear la cuenta";
       if (error.code === "auth/email-already-in-use")
         msg = "Ya existe una cuenta con este correo";
