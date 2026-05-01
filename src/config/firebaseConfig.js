@@ -17,3 +17,4 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 export { auth, db };
+console.log("API KEY:", process.env.EXPO_PUBLIC_FIREBASE_API_KEY);
