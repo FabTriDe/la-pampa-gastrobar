@@ -5,46 +5,45 @@
 
 // ─── PALETA DE COLORES ───
 export const COLORS = {
-  // Colores primarios
-  PRIMARY: "#F5A623", // Naranja/Dorado
-  PRIMARY_DARK: "#E89A1F", // Naranja oscuro
-  PRIMARY_LIGHT: "#FFC857", // Naranja claro
+  // ── Fondos ──
+  backgroundDark: "#1C0D03",
+  backgroundAccent: "#2C1200",
+  surface: "#FDF6E3",
+  surfaceWhite: "#FFFFFF",
+  surfaceHighlight: "#FFF8EC",
+  surfaceGold: "#FFF3CC",
+  surfaceGoldLight: "#FFF0CC",
 
-  // Colores secundarios
-  SECONDARY: "#3D2817", // Marrón oscuro
-  SECONDARY_LIGHT: "#5C4033", // Marrón claro
+  // ── Dorados ──
+  primary: "#E8A020",
+  primaryBorder: "#C4860E",
+  primaryLight: "#EDD99A",
+  primaryInput: "#D4A843",
 
-  // Fondos
-  BACKGROUND: "#F5E6D3", // Crema/Beige
-  BACKGROUND_DARK: "#2B2520", // Negro oscuro
+  // ── Texto ──
+  textWhite: "#FFFFFF",
+  textDark: "#1C0D03",
+  textBrown: "#5C3300",
+  textGold: "#E8A020",
+  textGoldMuted: "#C4860E",
+  textLabel: "#8B6000",
+  textInactive: "#7A4800",
+  textPlaceholder: "#BBA060",
 
-  // Textos
-  TEXT_PRIMARY: "#3D2817", // Marrón oscuro (para texto principal)
-  TEXT_SECONDARY: "#6B5B4A", // Marrón grisáceo (para texto secundario)
-  TEXT_LIGHT: "#F5E6D3", // Crema (para texto sobre fondos oscuros)
-  TEXT_WHITE: "#FFFFFF", // Blanco
-
-  // Estados
-  SUCCESS: "#4CAF50", // Verde (éxito, pedido completado)
-  WARNING: "#FF9800", // Naranja (en progreso)
-  ERROR: "#F44336", // Rojo (error)
-  INFO: "#2196F3", // Azul (información)
-
-  // Neutral
-  BORDER: "#DDD6CC", // Borde gris claro
-  DISABLED: "#CCCCCC", // Deshabilitado
-  WHITE: "#FFFFFF",
-  BLACK: "#000000",
-
-  // Estados de mesa
-  TABLE_FREE: "#4CAF50", // Mesa libre (verde)
-  TABLE_OCCUPIED: "#F44336", // Mesa ocupada (rojo)
-  TABLE_PENDING: "#FF9800", // Mesa pendiente (naranja)
+  // ── Estados ──
+  statusPrep: "#FFF0CC",
+  statusPrepText: "#8B6000",
+  statusDone: "#DDFFD0",
+  statusDoneText: "#2A6E00",
+  statusWait: "#FFE8CC",
+  statusWaitText: "#8B3000",
+  error: "#F44336",
 };
 
 // ─── TIPOGRAFÍA ───
 export const FONTS = {
-  // Tamaños
+  heading: "Oswald",
+  body: "Nunito",
   SIZE_XS: 10,
   SIZE_SM: 12,
   SIZE_BASE: 14,
@@ -55,7 +54,6 @@ export const FONTS = {
   SIZE_4XL: 28,
   SIZE_5XL: 32,
 
-  // Pesos
   WEIGHT_LIGHT: "300",
   WEIGHT_NORMAL: "400",
   WEIGHT_MEDIUM: "500",
@@ -77,31 +75,31 @@ export const SPACING = {
 // ─── BORDES ───
 export const BORDER_RADIUS = {
   NONE: 0,
-  SM: 4,
-  MD: 8,
-  LG: 12,
-  XL: 16,
-  FULL: 9999,
+  sm: 6,
+  md: 8,
+  lg: 10,
+  xl: 20,
+  full: 999,
 };
 
 // ─── SOMBRAS ───
 export const SHADOWS = {
   SMALL: {
-    shadowColor: COLORS.BLACK,
+    shadowColor: COLORS.textDark,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
     elevation: 2,
   },
   MEDIUM: {
-    shadowColor: COLORS.BLACK,
+    shadowColor: COLORS.textDark,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.23,
     shadowRadius: 2.62,
     elevation: 4,
   },
   LARGE: {
-    shadowColor: COLORS.BLACK,
+    shadowColor: COLORS.textDark,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.27,
     shadowRadius: 4.65,
@@ -109,53 +107,11 @@ export const SHADOWS = {
   },
 };
 
-// ─── ESTILOS COMPONENTES COMUNES ───
-export const BUTTON_STYLES = {
-  PRIMARY: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingVertical: SPACING.MD,
-    paddingHorizontal: SPACING.XL,
-    borderRadius: BORDER_RADIUS.MD,
-  },
-  SECONDARY: {
-    backgroundColor: COLORS.SECONDARY,
-    paddingVertical: SPACING.MD,
-    paddingHorizontal: SPACING.XL,
-    borderRadius: BORDER_RADIUS.MD,
-  },
-  OUTLINED: {
-    borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-    paddingVertical: SPACING.MD,
-    paddingHorizontal: SPACING.XL,
-    borderRadius: BORDER_RADIUS.MD,
-  },
-};
-
-// ─── ESTILOS INPUT ───
-export const INPUT_STYLES = {
-  CONTAINER: {
-    borderWidth: 1,
-    borderColor: COLORS.BORDER,
-    borderRadius: BORDER_RADIUS.MD,
-    paddingHorizontal: SPACING.MD,
-    paddingVertical: SPACING.SM,
-    backgroundColor: COLORS.WHITE,
-  },
-  FOCUSED: {
-    borderColor: COLORS.PRIMARY,
-    borderWidth: 2,
-  },
-  ERROR: {
-    borderColor: COLORS.ERROR,
-  },
-};
-
 // ─── ESTILOS CARD ───
 export const CARD_STYLES = {
   CONTAINER: {
-    backgroundColor: COLORS.WHITE,
-    borderRadius: BORDER_RADIUS.LG,
+    backgroundColor: COLORS.surfaceWhite,
+    borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.LG,
     ...SHADOWS.SMALL,
   },
@@ -167,7 +123,5 @@ export default {
   SPACING,
   BORDER_RADIUS,
   SHADOWS,
-  BUTTON_STYLES,
-  INPUT_STYLES,
   CARD_STYLES,
 };

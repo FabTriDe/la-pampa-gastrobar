@@ -161,12 +161,14 @@ export default function CrearMeseroScreen({ navigation }) {
       />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        enabled={true}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          scrollEnabled={true}
         >
           {/* Top bar estilo admin */}
           <View style={styles.topBar}>

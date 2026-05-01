@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
   TextInput,
+  Image,
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
@@ -12,26 +13,29 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { COLORS, FONTS, SPACING, FONT_SIZES, BORDER_RADIUS } from '../theme';
+} from "react-native";
+import { COLORS, FONTS, SPACING, FONT_SIZES, BORDER_RADIUS } from "../theme";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db, isFirebaseConfigured } from "../config/firebaseConfig";
 
 // NOTA: Para usar Oswald y Nunito en React Native, instalar:
 // npx expo install expo-font @expo-google-fonts/oswald @expo-google-fonts/nunito
 // O usar: expo-font con assets locales
 // Por ahora usamos System como fallback hasta configurar las fuentes
 
-const ROLES = ['Admin', 'Mesero', 'Cliente'];
+const ROLES = ["Admin", "Mesero", "Cliente"];
 
 const PLACEHOLDERS = {
-  Admin: 'admin@lapampa.com',
-  Mesero: 'mesero@lapampa.com',
-  Cliente: 'cliente@lapampa.com',
+  Admin: "admin@lapampa.com",
+  Mesero: "mesero@lapampa.com",
+  Cliente: "cliente@lapampa.com",
 };
 
 export default function LoginScreen({ navigation }) {
-  const [selectedRole, setSelectedRole] = useState('Admin');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [selectedRole, setSelectedRole] = useState("Admin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState({});
@@ -40,14 +44,14 @@ export default function LoginScreen({ navigation }) {
   const validate = () => {
     const newErrors = {};
     if (!email.trim()) {
-      newErrors.email = 'El correo es obligatorio';
+      newErrors.email = "El correo es obligatorio";
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Ingresa un correo válido';
+      newErrors.email = "Ingresa un correo válido";
     }
     if (!password.trim()) {
-      newErrors.password = 'La contraseña es obligatoria';
+      newErrors.password = "La contraseña es obligatoria";
     } else if (password.length < 6) {
-      newErrors.password = 'Mínimo 6 caracteres';
+      newErrors.password = "Mínimo 6 caracteres";
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -59,32 +63,60 @@ export default function LoginScreen({ navigation }) {
     setIsLoading(true);
 
     try {
-      // TODO: Integrar Firebase Authentication
-      // import AuthService from '../services/AuthService';
-      // const user = await AuthService.signIn(email, password);
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Autenticar con Firebase
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      const user = userCredential.user;
 
-      switch (selectedRole) {
-        case 'Admin':
-          navigation.replace('AdminDashboard');
+      // Obtener datos del usuario de Firestore
+      const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+
+      if (!userDoc.exists()) {
+        throw new Error("Usuario no encontrado en la base de datos");
+      }
+
+      const userData = userDoc.data();
+      const rol = userData.rol?.toLowerCase() || "cliente";
+
+      // Validar que el rol del usuario coincida con el seleccionado
+      if (rol !== selectedRole.toLowerCase()) {
+        await auth.signOut();
+        throw new Error(
+          `Este correo pertenece a una cuenta de ${rol}, no de ${selectedRole.toLowerCase()}`,
+        );
+      }
+
+      // Navegar según el rol
+      switch (selectedRole.toLowerCase()) {
+        case "admin":
+          navigation.replace("AdminDashboard", { user });
           break;
-        case 'Mesero':
-          navigation.replace('MeseroModule');
+        case "mesero":
+          navigation.replace("MeseroModule", { user });
           break;
-        case 'Cliente':
-          navigation.replace('ClienteModule');
+        case "cliente":
+          navigation.replace("ClienteModule", { user });
           break;
+        default:
+          throw new Error("Rol desconocido");
       }
     } catch (error) {
-      let message = 'Error al iniciar sesión';
-      if (error.code === 'auth/user-not-found') {
-        message = 'No existe una cuenta con este correo';
-      } else if (error.code === 'auth/wrong-password') {
-        message = 'Contraseña incorrecta';
-      } else if (error.code === 'auth/too-many-requests') {
-        message = 'Demasiados intentos. Intenta más tarde';
+      let message = "Error al iniciar sesión";
+      if (error.code === "auth/user-not-found") {
+        message = "No existe una cuenta con este correo";
+      } else if (error.code === "auth/wrong-password") {
+        message = "Contraseña incorrecta";
+      } else if (error.code === "auth/too-many-requests") {
+        message = "Demasiados intentos. Intenta más tarde";
+      } else if (error.code === "auth/invalid-email") {
+        message = "Correo no válido";
+      } else if (error.message) {
+        message = error.message;
       }
-      Alert.alert('Error', message);
+      Alert.alert("Error", message);
     } finally {
       setIsLoading(false);
     }
@@ -93,22 +125,28 @@ export default function LoginScreen({ navigation }) {
   // ─── Render ───
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.backgroundDark} />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={COLORS.backgroundDark}
+      />
 
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        enabled={true}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          scrollEnabled={true}
         >
           {/* ── Brand header ── */}
           <View style={styles.header}>
-            <View style={styles.logoRing}>
-              <Text style={styles.logoText}>LP</Text>
-            </View>
+            <Image
+              source={require("../assets/logo_lapampa.jpg")}
+              style={styles.logoImage}
+            />
             <Text style={styles.brandTitle}>LA PAMPA</Text>
             <Text style={styles.brandSub}>GASTRO BAR · CALI</Text>
           </View>
@@ -151,7 +189,12 @@ export default function LoginScreen({ navigation }) {
             {/* Email */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>CORREO ELECTRÓNICO</Text>
-              <View style={[styles.fieldInput, errors.email && styles.fieldInputError]}>
+              <View
+                style={[
+                  styles.fieldInput,
+                  errors.email && styles.fieldInputError,
+                ]}
+              >
                 <View style={styles.fieldIcon} />
                 <TextInput
                   style={styles.textInput}
@@ -176,7 +219,12 @@ export default function LoginScreen({ navigation }) {
             {/* Password */}
             <View style={styles.fieldGroup}>
               <Text style={styles.fieldLabel}>CONTRASEÑA</Text>
-              <View style={[styles.fieldInput, errors.password && styles.fieldInputError]}>
+              <View
+                style={[
+                  styles.fieldInput,
+                  errors.password && styles.fieldInputError,
+                ]}
+              >
                 <View style={[styles.fieldIcon, styles.fieldIconSquare]} />
                 <TextInput
                   style={styles.textInput}
@@ -185,7 +233,8 @@ export default function LoginScreen({ navigation }) {
                   value={password}
                   onChangeText={(text) => {
                     setPassword(text);
-                    if (errors.password) setErrors({ ...errors, password: null });
+                    if (errors.password)
+                      setErrors({ ...errors, password: null });
                   }}
                   secureTextEntry={!showPassword}
                   editable={!isLoading}
@@ -195,7 +244,7 @@ export default function LoginScreen({ navigation }) {
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <Text style={styles.showPasswordText}>
-                    {showPassword ? 'Ocultar' : 'Ver'}
+                    {showPassword ? "Ocultar" : "Ver"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -223,8 +272,8 @@ export default function LoginScreen({ navigation }) {
               style={styles.forgotBtn}
               onPress={() => {
                 Alert.alert(
-                  'Recuperar contraseña',
-                  'Se enviará un enlace de recuperación a tu correo electrónico.',
+                  "Recuperar contraseña",
+                  "Se enviará un enlace de recuperación a tu correo electrónico.",
                 );
               }}
               disabled={isLoading}
@@ -233,17 +282,16 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
 
             {/* Link a registro (para clientes) */}
-            {selectedRole === 'Cliente' && (
+            {selectedRole === "Cliente" && (
               <TouchableOpacity
                 style={styles.registerBtn}
                 onPress={() => {
-                  // TODO: navigation.navigate('RegisterCliente');
-                  Alert.alert('Registro', 'Pantalla de registro próximamente');
+                  navigation.navigate("RegisterCliente");
                 }}
                 disabled={isLoading}
               >
                 <Text style={styles.registerText}>
-                  ¿No tienes cuenta?{' '}
+                  ¿No tienes cuenta?{" "}
                   <Text style={styles.registerLink}>Regístrate aquí</Text>
                 </Text>
               </TouchableOpacity>
@@ -272,54 +320,41 @@ const styles = StyleSheet.create({
   // ── Brand header ──
   header: {
     backgroundColor: COLORS.backgroundDark,
-    alignItems: 'center',
+    alignItems: "center",
     paddingTop: 40,
     paddingBottom: 24,
   },
-  logoRing: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primary,        // #E8A020
-    borderWidth: 2.5,
-    borderColor: COLORS.primaryBorder,       // #C4860E
-    justifyContent: 'center',
-    alignItems: 'center',
+  logoImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     marginBottom: 8,
   },
-  logoText: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
-    // TODO: Reemplazar con Oswald cuando se carguen las fuentes
-    fontSize: 28,
-    fontWeight: '700',
-    color: COLORS.textDark,                  // #1C0D03
-    letterSpacing: 1,
-  },
   brandTitle: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif-condensed",
     fontSize: 20,
-    fontWeight: '700',
-    color: COLORS.primary,                   // #E8A020
+    fontWeight: "700",
+    color: COLORS.primary, // #E8A020
     letterSpacing: 3,
   },
   brandSub: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
     fontSize: 10,
-    color: COLORS.primaryBorder,             // #C4860E
+    color: COLORS.primaryBorder, // #C4860E
     letterSpacing: 2.5,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 2,
   },
 
   // ── Arch ──
   archContainer: {
     height: 20,
-    backgroundColor: COLORS.surface,         // #FDF6E3
-    overflow: 'hidden',
+    backgroundColor: COLORS.surface, // #FDF6E3
+    overflow: "hidden",
   },
   arch: {
     height: 40,
-    backgroundColor: COLORS.backgroundDark,  // #1C0D03
+    backgroundColor: COLORS.backgroundDark, // #1C0D03
     borderBottomLeftRadius: 200,
     borderBottomRightRadius: 200,
     marginTop: -20,
@@ -328,43 +363,43 @@ const styles = StyleSheet.create({
   // ── Form ──
   formArea: {
     flex: 1,
-    backgroundColor: COLORS.surface,         // #FDF6E3
+    backgroundColor: COLORS.surface, // #FDF6E3
     paddingHorizontal: 20,
     paddingTop: 8,
     gap: 12,
   },
   welcomeText: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
     fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textBrown,                 // #5C3300
-    textAlign: 'center',
+    fontWeight: "700",
+    color: COLORS.textBrown, // #5C3300
+    textAlign: "center",
   },
 
   // ── Role tabs ──
   roleTabs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 3,
-    backgroundColor: COLORS.primaryLight,    // #EDD99A
+    backgroundColor: COLORS.primaryLight, // #EDD99A
     borderRadius: BORDER_RADIUS.md,
     padding: 3,
   },
   roleBtn: {
     flex: 1,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: BORDER_RADIUS.sm,
   },
   roleBtnActive: {
-    backgroundColor: COLORS.backgroundDark,  // #1C0D03
+    backgroundColor: COLORS.backgroundDark, // #1C0D03
   },
   roleBtnText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.textInactive,              // #7A4800
+    fontWeight: "700",
+    color: COLORS.textInactive, // #7A4800
   },
   roleBtnTextActive: {
-    color: COLORS.primary,                   // #E8A020
+    color: COLORS.primary, // #E8A020
   },
 
   // ── Fields ──
@@ -373,16 +408,16 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.textLabel,                 // #8B6000
+    fontWeight: "700",
+    color: COLORS.textLabel, // #8B6000
     letterSpacing: 1,
   },
   fieldInput: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.surfaceWhite,
     borderWidth: 1.5,
-    borderColor: COLORS.primaryInput,        // #D4A843
+    borderColor: COLORS.primaryInput, // #D4A843
     borderRadius: 7,
     paddingHorizontal: 12,
     height: 44,
@@ -395,7 +430,7 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: COLORS.primary,         // #E8A020
+    backgroundColor: COLORS.primary, // #E8A020
   },
   fieldIconSquare: {
     borderRadius: 3,
@@ -409,7 +444,7 @@ const styles = StyleSheet.create({
   showPasswordText: {
     fontSize: 11,
     color: COLORS.primary,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   errorText: {
     fontSize: 10,
@@ -419,35 +454,35 @@ const styles = StyleSheet.create({
 
   // ── Login button ──
   loginBtn: {
-    backgroundColor: COLORS.primary,         // #E8A020
+    backgroundColor: COLORS.primary, // #E8A020
     borderRadius: BORDER_RADIUS.md,
     paddingVertical: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
   },
   loginBtnDisabled: {
     opacity: 0.6,
   },
   loginBtnText: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
+    fontFamily: Platform.OS === "ios" ? "System" : "sans-serif-condensed",
     fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.textDark,                  // #1C0D03
+    fontWeight: "700",
+    color: COLORS.textDark, // #1C0D03
     letterSpacing: 2,
   },
 
   // ── Links ──
   forgotBtn: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   forgotText: {
     fontSize: 12,
-    color: COLORS.textLabel,                 // #8B6000
-    textDecorationLine: 'underline',
+    color: COLORS.textLabel, // #8B6000
+    textDecorationLine: "underline",
   },
   registerBtn: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 4,
   },
   registerText: {
@@ -456,15 +491,15 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     color: COLORS.primary,
-    fontWeight: '700',
-    textDecorationLine: 'underline',
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
 
   // ── Home indicator ──
   homeIndicator: {
     backgroundColor: COLORS.surface,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   homeBar: {
     width: 72,

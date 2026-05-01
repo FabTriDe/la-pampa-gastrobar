@@ -12,6 +12,9 @@ import {
   LoginScreen,
   RegisterClienteScreen,
   CrearMeseroScreen,
+  AdminDashboard,
+  MeseroModule,
+  ClienteModule,
 } from "../screens";
 import { COLORS } from "../theme";
 
@@ -37,13 +40,13 @@ export default function AppNavigator() {
 
         {/* ── Admin ── */}
         <Stack.Screen name="CrearMesero" component={CrearMeseroScreen} />
-
-        {/* ── Módulos principales (por implementar) ── */}
-        {/* 
         <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
+
+        {/* ── Mesero ── */}
         <Stack.Screen name="MeseroModule" component={MeseroModule} />
+
+        {/* ── Cliente ── */}
         <Stack.Screen name="ClienteModule" component={ClienteModule} />
-        */}
       </Stack.Navigator>
     </NavigationContainer>
   );
