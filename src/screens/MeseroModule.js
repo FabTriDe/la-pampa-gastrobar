@@ -1,359 +1,648 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
-  StatusBar,
   Alert,
-  FlatList,
 } from "react-native";
-import { COLORS, BORDER_RADIUS, SPACING } from "../theme";
-import { signOut } from "firebase/auth";
-import { auth } from "../config/firebaseConfig";
+import { COLORS } from "../theme";
+import { getAuth, signOut } from "firebase/auth";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
 
-export default function MeseroModule({ navigation, route }) {
-  const [user] = useState(route.params?.user || null);
-  const [activeTab, setActiveTab] = useState("pedidos");
+const productosBase = [
+  { id: "1", nombre: "Patacón pisao", area: "Cocina", precio: 28000 },
+  { id: "2", nombre: "Chuleta de cerdo", area: "Cocina", precio: 32000 },
+  { id: "3", nombre: "Michelada", area: "Bar", precio: 15000 },
+  { id: "4", nombre: "Lulada", area: "Bar", precio: 12000 },
+];
 
-  const [pedidos] = useState([
-    {
-      id: "1",
-      mesa: "01",
-      cliente: "Juan García",
-      items: 3,
-      estado: "pendiente",
-    },
-    {
-      id: "2",
-      mesa: "05",
-      cliente: "María López",
-      items: 2,
-      estado: "preparando",
-    },
-    {
-      id: "3",
-      mesa: "12",
-      cliente: "Carlos Rodríguez",
-      items: 4,
-      estado: "listo",
-    },
+export default function MeseroModuleScreen({ navigation }) {
+  const [vista, setVista] = useState("mesas");
+  const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
+  const auth = getAuth();
+  const user = auth.currentUser;
+  const [nombreUsuario, setNombreUsuario] = useState("Usuario");
+  const db = getFirestore();
+
+  useEffect(() => {
+  const obtenerUsuario = async () => {
+    if (!user) return;
+
+    try {
+      const ref = doc(db, "usuarios", user.uid);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        setNombreUsuario(snap.data().nombre || "Usuario");
+      }
+    } catch (error) {
+      console.log("Error obteniendo usuario:", error);
+    }
+  };
+
+  obtenerUsuario();
+}, [user]);
+
+const handleLogout = () => {
+  signOut(auth)
+    .then(() => {
+      navigation.replace("Login"); 
+    })
+    .catch((error) => {
+      Alert.alert("Error", error.message);
+    });
+};
+
+  const [mesas, setMesas] = useState([
+    { id: 1, nombre: "M1", estado: "Libre", capacidad: 4, pedido: [] },
+    { id: 2, nombre: "M2", estado: "En pedido", capacidad: 2, pedido: [] },
+    { id: 3, nombre: "M3", estado: "Listo", capacidad: 4, pedido: [] },
+    { id: 4, nombre: "M4", estado: "En pedido", capacidad: 6, pedido: productosBase },
+    { id: 5, nombre: "M5", estado: "Libre", capacidad: 2, pedido: [] },
+    { id: 6, nombre: "M6", estado: "Libre", capacidad: 4, pedido: [] },
+    { id: 7, nombre: "M7", estado: "En pedido", capacidad: 8, pedido: [] },
+    { id: 8, nombre: "M8", estado: "Listo", capacidad: 4, pedido: [] },
+    { id: 9, nombre: "M9", estado: "Libre", capacidad: 2, pedido: [] },
   ]);
 
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      navigation.replace("Login");
-    } catch (error) {
-      Alert.alert("Error", "No se pudo cerrar sesión");
-    }
+  const abrirMesa = (mesa) => {
+    setMesaSeleccionada(mesa);
+    setVista("pedido");
   };
 
-  const RenderPedido = ({ item }) => (
-    <TouchableOpacity style={styles.pedidoCard}>
-      <View style={styles.pedidoHeader}>
-        <Text style={styles.mesaNumber}>Mesa {item.mesa}</Text>
-        <View
-          style={[
-            styles.estado,
-            { backgroundColor: getEstadoColor(item.estado) },
-          ]}
-        >
-          <Text style={styles.estadoText}>{item.estado.toUpperCase()}</Text>
+  const totalPedido = () => {
+    if (!mesaSeleccionada) return 0;
+    return mesaSeleccionada.pedido.reduce((total, item) => total + item.precio, 0);
+  };
+
+  const agregarItem = () => {
+    if (!mesaSeleccionada) return;
+
+    const nuevoProducto = {
+      id: Date.now().toString(),
+      nombre: "Nuevo producto",
+      area: "Cocina",
+      precio: 18000,
+    };
+
+    const mesasActualizadas = mesas.map((mesa) =>
+      mesa.id === mesaSeleccionada.id
+        ? {
+            ...mesa,
+            estado: "En pedido",
+            pedido: [...mesa.pedido, nuevoProducto],
+          }
+        : mesa
+    );
+
+    setMesas(mesasActualizadas);
+
+    const mesaActualizada = mesasActualizadas.find(
+      (mesa) => mesa.id === mesaSeleccionada.id
+    );
+
+    setMesaSeleccionada(mesaActualizada);
+  };
+
+  const enviarPedido = () => {
+    if (!mesaSeleccionada || mesaSeleccionada.pedido.length === 0) {
+      Alert.alert("Pedido vacío", "Agrega productos antes de enviar.");
+      return;
+    }
+
+    Alert.alert(
+      "Pedido enviado",
+      "La orden fue enviada correctamente a cocina/bar."
+    );
+  };
+
+  if (vista === "pedido" && mesaSeleccionada) {
+    return (
+      <View style={styles.container}>
+            <View style={styles.topBar}>
+      <View>
+        <Text style={styles.greetingText}>
+          Hola, <Text style={styles.userNameText}>{nombreUsuario}</Text>
+        </Text>
+
+        <Text style={styles.userEmailText}>
+          {user?.email || "mesero@lapampa.com"}
+        </Text>
+      </View>
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutButtonText}>× Salir</Text>
+      </TouchableOpacity>
+    </View>
+
+        <ScrollView style={styles.body}>
+          <Text style={styles.sectionTitle}>ORDEN ACTUAL</Text>
+
+          <View style={styles.orderCard}>
+            <View style={styles.orderHeader}>
+              <Text style={styles.orderTitle}>
+                Mesa {mesaSeleccionada.id} · Orden #031
+              </Text>
+              <View style={styles.timePill}>
+                <Text style={styles.timePillText}>Hace 8 min</Text>
+              </View>
+            </View>
+
+            {mesaSeleccionada.pedido.map((item, index) => (
+              <View key={item.id} style={styles.orderItem}>
+                <View>
+                  <Text style={styles.itemName}>{item.nombre}</Text>
+                  <Text style={styles.itemArea}>
+                    x{index === 2 ? 3 : index === 0 ? 2 : 1} · {item.area}
+                  </Text>
+                </View>
+
+                <Text style={styles.itemPrice}>
+                  ${item.precio.toLocaleString("es-CO")}
+                </Text>
+              </View>
+            ))}
+
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>TOTAL</Text>
+              <Text style={styles.totalValue}>
+                ${totalPedido().toLocaleString("es-CO")}
+              </Text>
+            </View>
+
+            <TouchableOpacity style={styles.sendBtn} onPress={enviarPedido}>
+              <Text style={styles.sendBtnText}>ENVIAR A COCINA / BAR</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.addBtn} onPress={agregarItem}>
+              <Text style={styles.addBtnText}>+ Agregar ítem al pedido</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.sectionTitle}>ESTADO DEL PEDIDO</Text>
+
+          <View style={styles.statusCard}>
+            <View>
+              <Text style={styles.itemName}>Patacón pisao x2</Text>
+              <Text style={styles.itemArea}>Cocina</Text>
+            </View>
+            <View style={styles.preparingPill}>
+              <Text style={styles.preparingText}>Preparando</Text>
+            </View>
+          </View>
+
+          <View style={styles.statusCard}>
+            <View>
+              <Text style={styles.itemName}>Michelada x3</Text>
+              <Text style={styles.itemArea}>Bar</Text>
+            </View>
+            <View style={styles.readyPill}>
+              <Text style={styles.readyText}>Listo</Text>
+            </View>
+          </View>
+        </ScrollView>
+
+        <View style={styles.bottomNav}>
+          <TouchableOpacity onPress={() => setVista("mesas")}>
+            <Text style={styles.navText}>MES{"\n"}Mesas</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity>
+            <Text style={[styles.navText, styles.navActive]}>PED{"\n"}Pedidos</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity>
+            <Text style={styles.navText}>HIS{"\n"}Historial</Text>
+          </TouchableOpacity>
         </View>
       </View>
-      <Text style={styles.clienteName}>{item.cliente}</Text>
-      <Text style={styles.itemsCount}>{item.items} artículos</Text>
-    </TouchableOpacity>
-  );
-
-  const getEstadoColor = (estado) => {
-    switch (estado) {
-      case "pendiente":
-        return "#E8A020";
-      case "preparando":
-        return "#3498DB";
-      case "listo":
-        return "#2ECC71";
-      default:
-        return COLORS.primary;
-    }
-  };
+    );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor={COLORS.backgroundDark}
-      />
-
-      {/* Header */}
-      <View style={styles.header}>
+    <View style={styles.container}>
+      <View style={styles.topBar}>
         <View>
-          <Text style={styles.headerTitle}>LA PAMPA</Text>
-          <Text style={styles.headerSubtitle}>Módulo Mesero</Text>
-        </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Salir</Text>
-        </TouchableOpacity>
+         <Text style={styles.greetingText}>
+            Mesero, <Text style={styles.userNameText}>{nombreUsuario}</Text>
+        </Text>
+        <Text style={styles.userEmailText}>
+          {user?.email || "mesero@lapampa.com"}
+        </Text>
       </View>
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutButtonText}>× Salir</Text>
+      </TouchableOpacity>
+    </View>
 
-      {/* User info */}
-      <View style={styles.userCard}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>🤵</Text>
-        </View>
-        <View style={styles.userInfo}>
-          <Text style={styles.userName}>Bienvenido, Mesero</Text>
-          <Text style={styles.userEmail}>
-            {user?.email || "mesero@lapampa.com"}
-          </Text>
-        </View>
-      </View>
+      <ScrollView style={styles.body}>
+        <Text style={styles.sectionTitle}>SALÓN PRINCIPAL</Text>
 
-      {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mi Turno</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>8</Text>
-              <Text style={styles.statLabel}>Mesas Activas</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>12</Text>
-              <Text style={styles.statLabel}>Pedidos Hoy</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>$2.8K</Text>
-              <Text style={styles.statLabel}>Propinas</Text>
-            </View>
+        <View style={styles.grid}>
+          {mesas.map((mesa) => (
+            <TouchableOpacity
+              key={mesa.id}
+              style={[
+                styles.tableCard,
+                mesa.estado === "Libre" && styles.tableFree,
+                mesa.estado === "En pedido" && styles.tableBusy,
+                mesa.estado === "Listo" && styles.tableReady,
+              ]}
+              onPress={() => abrirMesa(mesa)}
+            >
+              <Text
+                style={[
+                  styles.tableName,
+                  mesa.estado === "En pedido" && styles.tableNameBusy,
+                ]}
+              >
+                {mesa.nombre}
+              </Text>
+
+              <View
+                style={[
+                  styles.tablePill,
+                  mesa.estado === "En pedido" && styles.tablePillBusy,
+                  mesa.estado === "Listo" && styles.tablePillReady,
+                ]}
+              >
+                <Text style={styles.tablePillText}>{mesa.estado}</Text>
+              </View>
+
+              <Text
+                style={[
+                  styles.capacity,
+                  mesa.estado === "En pedido" && styles.capacityBusy,
+                ]}
+              >
+                Cap. {mesa.capacidad}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.legend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#F6E9BD" }]} />
+            <Text style={styles.legendText}>Libre</Text>
           </View>
-        </View>
 
-        {/* Pedidos */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Pedidos Activos</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>Ver todos</Text>
-            </TouchableOpacity>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#1C0D03" }]} />
+            <Text style={styles.legendText}>En pedido</Text>
           </View>
-          <FlatList
-            data={pedidos}
-            renderItem={({ item }) => <RenderPedido item={item} />}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-          />
-        </View>
 
-        {/* Quick Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Acciones</Text>
-          <View style={styles.actionsGrid}>
-            <TouchableOpacity style={styles.actionBtn}>
-              <Text style={styles.actionIcon}>📝</Text>
-              <Text style={styles.actionText}>Nuevo Pedido</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
-              <Text style={styles.actionIcon}>💰</Text>
-              <Text style={styles.actionText}>Registrar Propina</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
-              <Text style={styles.actionIcon}>🔔</Text>
-              <Text style={styles.actionText}>Notificaciones</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn}>
-              <Text style={styles.actionIcon}>⚙️</Text>
-              <Text style={styles.actionText}>Preferencias</Text>
-            </TouchableOpacity>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#E8A020" }]} />
+            <Text style={styles.legendText}>Listo</Text>
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+
+      <View style={styles.bottomNav}>
+        <TouchableOpacity>
+          <Text style={[styles.navText, styles.navActive]}>MES{"\n"}Mesas</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => {
+            if (mesaSeleccionada) setVista("pedido");
+            else Alert.alert("Selecciona una mesa", "Primero elige una mesa.");
+          }}
+        >
+          <Text style={styles.navText}>PED{"\n"}Pedidos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity>
+          <Text style={styles.navText}>HIS{"\n"}Historial</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
+
+const DARK = "#1C0D03";
+const GOLD = "#E8A020";
+const CREAM = "#FDF6E3";
+const BORDER = "#E4A51C";
+const BROWN = "#5C3300";
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.backgroundDark,
+    backgroundColor: DARK,
   },
-  header: {
-    backgroundColor: COLORS.primary,
-    padding: SPACING.LG,
-    paddingTop: SPACING.MD,
-    flexDirection: "row",
-    justifyContent: "space-between",
+topBar: {
+  backgroundColor: DARK,
+  paddingTop: 46,
+  paddingBottom: 22,
+  paddingHorizontal: 22,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  borderBottomWidth: 1,
+  borderBottomColor: "#3A1F08",
+},
+
+greetingText: {
+  color: "#B8770A",
+  fontSize: 20,
+},
+
+userNameText: {
+  color: GOLD,
+  fontSize: 25,
+  fontWeight: "bold",
+},
+
+userEmailText: {
+  color: "#B8770A",
+  fontSize: 11,
+  marginTop: 4,
+},
+
+logoutButton: {
+  borderWidth: 1.5,
+  borderColor: "#8A4F0A",
+  borderRadius: 12,
+  paddingHorizontal: 16,
+  paddingVertical: 10,
+},
+
+logoutButtonText: {
+  color: GOLD,
+  fontSize: 16,
+  fontWeight: "bold",
+},
+  logoCircle: {
+    width: 43,
+    height: 43,
+    borderRadius: 22,
+    backgroundColor: GOLD,
     alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: COLORS.textDark,
-    letterSpacing: 2,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: COLORS.textDark,
-    marginTop: 4,
-    opacity: 0.8,
-  },
-  logoutBtn: {
-    backgroundColor: COLORS.backgroundDark,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: BORDER_RADIUS.MD,
-  },
-  logoutText: {
-    color: COLORS.primary,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  userCard: {
-    backgroundColor: COLORS.surface,
-    marginHorizontal: SPACING.MD,
-    marginTop: SPACING.LG,
-    marginBottom: SPACING.LG,
-    borderRadius: BORDER_RADIUS.LG,
-    padding: SPACING.MD,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: SPACING.MD,
-  },
-  avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: COLORS.primary,
     justifyContent: "center",
-    alignItems: "center",
   },
-  avatarText: {
-    fontSize: 28,
+  logoText: {
+    color: DARK,
+    fontWeight: "bold",
   },
-  userInfo: {
+  topInfo: {
     flex: 1,
   },
-  userName: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textBrown,
+  topTitle: {
+    color: GOLD,
+    fontSize: 17,
+    fontWeight: "bold",
+    letterSpacing: 1.2,
   },
-  userEmail: {
+  topSub: {
+    color: "#B8770A",
+    fontSize: 11,
+  },
+  statusPill: {
+    backgroundColor: GOLD,
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 18,
+  },
+  statusPillText: {
+    color: DARK,
+    fontWeight: "bold",
     fontSize: 12,
-    color: COLORS.textLabel,
-    marginTop: 2,
   },
-  content: {
+  body: {
     flex: 1,
-    paddingHorizontal: SPACING.MD,
-  },
-  section: {
-    marginBottom: SPACING.LG,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: SPACING.MD,
+    backgroundColor: CREAM,
+    paddingHorizontal: 16,
+    paddingTop: 18,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: COLORS.primary,
-    letterSpacing: 1,
+    color: BROWN,
+    fontWeight: "bold",
+    fontSize: 17,
+    letterSpacing: 2,
+    marginBottom: 14,
   },
-  seeAll: {
-    color: COLORS.primary,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  statsGrid: {
+  grid: {
     flexDirection: "row",
-    gap: SPACING.SM,
+    flexWrap: "wrap",
+    gap: 10,
   },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.MD,
-    padding: SPACING.MD,
+  tableCard: {
+    width: "30.8%",
+    height: 90,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: BORDER,
     alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.primary,
+  tableFree: {
+    backgroundColor: "#FFF9E9",
   },
-  statLabel: {
+  tableBusy: {
+    backgroundColor: DARK,
+  },
+  tableReady: {
+    backgroundColor: "#FFF9E9",
+  },
+  tableName: {
+    color: GOLD,
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  tableNameBusy: {
+    color: GOLD,
+  },
+  tablePill: {
+    backgroundColor: "#F6E9BD",
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginVertical: 5,
+  },
+  tablePillBusy: {
+    backgroundColor: GOLD,
+  },
+  tablePillReady: {
+    backgroundColor: GOLD,
+  },
+  tablePillText: {
+    fontSize: 9,
+    color: BROWN,
+    fontWeight: "bold",
+  },
+  capacity: {
+    color: BROWN,
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  capacityBusy: {
+    color: GOLD,
+  },
+  legend: {
+    flexDirection: "row",
+    marginTop: 18,
+    gap: 20,
+  },
+  legendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  legendDot: {
+    width: 13,
+    height: 13,
+    borderRadius: 3,
+  },
+  legendText: {
+    color: BROWN,
     fontSize: 11,
-    color: COLORS.textLabel,
-    marginTop: 4,
-    textAlign: "center",
+    fontWeight: "bold",
   },
-  pedidoCard: {
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.MD,
-    padding: SPACING.MD,
-    marginBottom: SPACING.SM,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
+  orderCard: {
+    backgroundColor: "#FFF9E9",
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 18,
   },
-  pedidoHeader: {
+  orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: SPACING.SM,
   },
-  mesaNumber: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: COLORS.textBrown,
+  orderTitle: {
+    color: BROWN,
+    fontWeight: "bold",
+    fontSize: 17,
   },
-  estado: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
+  timePill: {
+    backgroundColor: "#F6E9BD",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
   },
-  estadoText: {
+  timePillText: {
+    color: GOLD,
     fontSize: 10,
-    fontWeight: "700",
-    color: COLORS.textDark,
+    fontWeight: "bold",
   },
-  clienteName: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textBrown,
-  },
-  itemsCount: {
-    fontSize: 11,
-    color: COLORS.textLabel,
-    marginTop: 4,
-  },
-  actionsGrid: {
+  orderItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#E6BC54",
+    paddingVertical: 10,
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: SPACING.SM,
+    justifyContent: "space-between",
   },
-  actionBtn: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: COLORS.surface,
-    borderRadius: BORDER_RADIUS.MD,
-    padding: SPACING.MD,
+  itemName: {
+    color: BROWN,
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  itemArea: {
+    color: "#9A6A15",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  itemPrice: {
+    color: BROWN,
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  totalRow: {
+    marginTop: 12,
+    marginBottom: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  totalLabel: {
+    color: BROWN,
+    fontSize: 17,
+    fontWeight: "bold",
+  },
+  totalValue: {
+    color: DARK,
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  sendBtn: {
+    backgroundColor: DARK,
+    paddingVertical: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sendBtnText: {
+    color: GOLD,
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 2,
+  },
+  addBtn: {
+    borderWidth: 1.5,
+    borderColor: BORDER,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
   },
-  actionIcon: {
-    fontSize: 28,
-    marginBottom: SPACING.SM,
+  addBtnText: {
+    color: BROWN,
+    fontWeight: "bold",
   },
-  actionText: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: COLORS.textBrown,
+  statusCard: {
+    backgroundColor: "#FFF9E9",
+    borderWidth: 1.2,
+    borderColor: "#E6BC54",
+    borderRadius: 10,
+    padding: 13,
+    marginBottom: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  preparingPill: {
+    backgroundColor: "#F6E9BD",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  preparingText: {
+    color: "#A66A00",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  readyPill: {
+    backgroundColor: "#DFFFD8",
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  readyText: {
+    color: "#3DAA35",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  bottomNav: {
+    height: 72,
+    backgroundColor: DARK,
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "#2C1607",
+  },
+  navText: {
+    color: "#6A3B08",
+    fontSize: 10,
+    fontWeight: "bold",
     textAlign: "center",
+  },
+  navActive: {
+    color: GOLD,
   },
 });
