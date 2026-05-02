@@ -15,6 +15,7 @@ import {
   AdminDashboard,
   MeseroModule,
   ClienteModule,
+  CarritoScreen,
 } from "../screens";
 import { COLORS } from "../theme";
 
@@ -47,6 +48,7 @@ export default function AppNavigator() {
 
         {/* ── Cliente ── */}
         <Stack.Screen name="ClienteModule" component={ClienteModule} />
+        <Stack.Screen name="CarritoScreen" component={CarritoScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
