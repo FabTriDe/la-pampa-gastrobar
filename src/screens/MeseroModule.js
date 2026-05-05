@@ -7,19 +7,25 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
 import { COLORS } from "../theme";
 import { getAuth, signOut } from "firebase/auth";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-
-const productosBase = [
-  { id: "1", nombre: "Patacón pisao", area: "Cocina", precio: 28000 },
-  { id: "2", nombre: "Chuleta de cerdo", area: "Cocina", precio: 32000 },
-  { id: "3", nombre: "Michelada", area: "Bar", precio: 15000 },
-  { id: "4", nombre: "Lulada", area: "Bar", precio: 12000 },
-];
 
 export default function MeseroModuleScreen({ navigation }) {
   const [vista, setVista] = useState("mesas");
+  const [productos, setProductos] = useState([]);
+  const [historialPedidos, setHistorialPedidos] = useState([]);
+  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [mesaSeleccionada, setMesaSeleccionada] = useState(null);
   const auth = getAuth();
   const user = auth.currentUser;
@@ -41,9 +47,32 @@ export default function MeseroModuleScreen({ navigation }) {
       console.log("Error obteniendo usuario:", error);
     }
   };
-
   obtenerUsuario();
 }, [user]);
+
+useEffect(() => {
+  const obtenerProductos = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, "productos"));
+
+      const listaProductos = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+
+      setProductos(listaProductos);
+
+      if (listaProductos.length > 0) {
+        setProductoSeleccionado(listaProductos[0]);
+      }
+    } catch (error) {
+      console.log("Error obteniendo productos:", error);
+      Alert.alert("Error", "No se pudieron cargar los productos.");
+    }
+  };
+
+  obtenerProductos();
+}, []);
 
 const handleLogout = () => {
   signOut(auth)
@@ -55,68 +84,202 @@ const handleLogout = () => {
     });
 };
 
-  const [mesas, setMesas] = useState([
-    { id: 1, nombre: "M1", estado: "Libre", capacidad: 4, pedido: [] },
-    { id: 2, nombre: "M2", estado: "En pedido", capacidad: 2, pedido: [] },
-    { id: 3, nombre: "M3", estado: "Listo", capacidad: 4, pedido: [] },
-    { id: 4, nombre: "M4", estado: "En pedido", capacidad: 6, pedido: productosBase },
-    { id: 5, nombre: "M5", estado: "Libre", capacidad: 2, pedido: [] },
-    { id: 6, nombre: "M6", estado: "Libre", capacidad: 4, pedido: [] },
-    { id: 7, nombre: "M7", estado: "En pedido", capacidad: 8, pedido: [] },
-    { id: 8, nombre: "M8", estado: "Listo", capacidad: 4, pedido: [] },
-    { id: 9, nombre: "M9", estado: "Libre", capacidad: 2, pedido: [] },
-  ]);
+const crearMesas = () =>
+  Array.from({ length: 9 }, (_, i) => ({
+    id: i + 1,
+    nombre: `M${i + 1}`,
+    estado: "Libre",
+    capacidad: [4,2,4,6,2,4,8,4,2][i],
+    pedido: [],
+  }));
+
+const [mesas, setMesas] = useState(crearMesas());
 
   const abrirMesa = (mesa) => {
     setMesaSeleccionada(mesa);
     setVista("pedido");
   };
 
-  const totalPedido = () => {
-    if (!mesaSeleccionada) return 0;
-    return mesaSeleccionada.pedido.reduce((total, item) => total + item.precio, 0);
-  };
+ const totalPedido = () => {
+  if (!mesaSeleccionada) return 0;
 
-  const agregarItem = () => {
-    if (!mesaSeleccionada) return;
+  return mesaSeleccionada.pedido.reduce(
+    (total, item) => total + item.precio * (item.cantidad || 1),
+    0
+  );
+};
 
-    const nuevoProducto = {
-      id: Date.now().toString(),
-      nombre: "Nuevo producto",
-      area: "Cocina",
-      precio: 18000,
+const actualizarCantidad = (itemId, cambio) => {
+  if (!mesaSeleccionada) return;
+
+  const mesasActualizadas = mesas.map((mesa) => {
+    if (mesa.id !== mesaSeleccionada.id) return mesa;
+
+    const pedidoActualizado = mesa.pedido.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            cantidad: Math.max((item.cantidad || 1) + cambio, 1),
+          }
+        : item
+    );
+
+    return {
+      ...mesa,
+      pedido: pedidoActualizado,
     };
+  });
+
+  setMesas(mesasActualizadas);
+
+  const mesaActualizada = mesasActualizadas.find(
+    (mesa) => mesa.id === mesaSeleccionada.id
+  );
+
+  setMesaSeleccionada(mesaActualizada);
+};
+
+const eliminarItem = (itemId) => {
+  if (!mesaSeleccionada) return;
+
+  const mesasActualizadas = mesas.map((mesa) => {
+    if (mesa.id !== mesaSeleccionada.id) return mesa;
+
+    return {
+      ...mesa,
+      pedido: mesa.pedido.filter((item) => item.id !== itemId),
+    };
+  });
+
+  setMesas(mesasActualizadas);
+
+  const mesaActualizada = mesasActualizadas.find(
+    (mesa) => mesa.id === mesaSeleccionada.id
+  );
+
+  setMesaSeleccionada(mesaActualizada);
+};
+
+const agregarItem = () => {
+  if (!mesaSeleccionada) return;
+
+const nuevoProducto = {
+  ...productoSeleccionado,
+  id: Date.now().toString(),
+  cantidad: 1,
+};
+
+  if (!productoSeleccionado) {
+  Alert.alert("Producto requerido", "Selecciona un producto antes de agregarlo.");
+  return;
+}
+
+  const mesasActualizadas = mesas.map((mesa) =>
+    mesa.id === mesaSeleccionada.id
+      ? {
+          ...mesa,
+          estado: "En pedido",
+          pedido: [...mesa.pedido, nuevoProducto],
+        }
+      : mesa
+  );
+
+  setMesas(mesasActualizadas);
+
+  const mesaActualizada = mesasActualizadas.find(
+    (mesa) => mesa.id === mesaSeleccionada.id
+  );
+
+  setMesaSeleccionada(mesaActualizada);
+};
+
+const enviarPedido = async () => {
+  if (!mesaSeleccionada || !mesaSeleccionada.pedido || mesaSeleccionada.pedido.length === 0) {
+    Alert.alert("Pedido vacío", "Agrega productos antes de enviar.");
+    return;
+  }
+
+  try {
+    await addDoc(collection(db, "ordenes"), {
+      tipoOrden: "mesa",
+      mesaId: mesaSeleccionada.id,
+      mesaNombre: mesaSeleccionada.nombre,
+      productos: mesaSeleccionada.pedido,
+      total: totalPedido(),
+      estado: "Listo",
+      meseroId: user.uid,
+      meseroNombre: nombreUsuario,
+      createdAt: new Date(),
+    });
 
     const mesasActualizadas = mesas.map((mesa) =>
       mesa.id === mesaSeleccionada.id
-        ? {
-            ...mesa,
-            estado: "En pedido",
-            pedido: [...mesa.pedido, nuevoProducto],
-          }
+        ? { ...mesa, estado: "Listo" }
         : mesa
     );
-
-    setMesas(mesasActualizadas);
 
     const mesaActualizada = mesasActualizadas.find(
       (mesa) => mesa.id === mesaSeleccionada.id
     );
 
+    setMesas(mesasActualizadas);
     setMesaSeleccionada(mesaActualizada);
-  };
 
-  const enviarPedido = () => {
-    if (!mesaSeleccionada || mesaSeleccionada.pedido.length === 0) {
-      Alert.alert("Pedido vacío", "Agrega productos antes de enviar.");
-      return;
-    }
+    Alert.alert("Pedido enviado", "Guardado en Firebase correctamente");
+  } catch (error) {
+    console.log(error);
+    Alert.alert("Error", "No se pudo guardar el pedido");
+  }
+};
 
-    Alert.alert(
-      "Pedido enviado",
-      "La orden fue enviada correctamente a cocina/bar."
+const liberarMesa = () => {
+  if (!mesaSeleccionada) return;
+
+  const mesasActualizadas = mesas.map((mesa) =>
+    mesa.id === mesaSeleccionada.id
+      ? {
+          ...mesa,
+          estado: "Libre",
+          pedido: [],
+        }
+      : mesa
+  );
+
+  setMesas(mesasActualizadas);
+  setMesaSeleccionada(null);
+  setVista("mesas");
+
+  Alert.alert("Mesa liberada", "La mesa quedó disponible nuevamente.");
+};
+
+const cargarHistorial = async () => {
+  try {
+    const q = query(
+      collection(db, "ordenes"),
+      where("tipoOrden", "==", "mesa")
     );
-  };
+
+    const snapshot = await getDocs(q);
+
+    const pedidos = snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+  .sort((a, b) => {
+    const fechaA = a.createdAt?.seconds || 0;
+    const fechaB = b.createdAt?.seconds || 0;
+
+    return fechaB - fechaA; // más nuevos primero
+  });
+
+    setHistorialPedidos(pedidos);
+    setVista("historial");
+  } catch (error) {
+    console.log("Error cargando historial:", error);
+    Alert.alert("Error", "No se pudo cargar el historial.");
+  }
+};
 
   if (vista === "pedido" && mesaSeleccionada) {
     return (
@@ -155,13 +318,35 @@ const handleLogout = () => {
                 <View>
                   <Text style={styles.itemName}>{item.nombre}</Text>
                   <Text style={styles.itemArea}>
-                    x{index === 2 ? 3 : index === 0 ? 2 : 1} · {item.area}
+                    x{item.cantidad || 1} · {item.area}
                   </Text>
                 </View>
 
                 <Text style={styles.itemPrice}>
                   ${item.precio.toLocaleString("es-CO")}
                 </Text>
+                <View style={styles.itemActions}>
+              <TouchableOpacity
+                style={styles.qtyButton}
+                onPress={() => actualizarCantidad(item.id, -1)}
+              >
+                <Text style={styles.qtyButtonText}>-</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.qtyButton}
+                onPress={() => actualizarCantidad(item.id, 1)}
+              >
+                <Text style={styles.qtyButtonText}>+</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => eliminarItem(item.id)}
+              >
+                <Text style={styles.deleteButtonText}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
               </View>
             ))}
 
@@ -175,7 +360,27 @@ const handleLogout = () => {
             <TouchableOpacity style={styles.sendBtn} onPress={enviarPedido}>
               <Text style={styles.sendBtnText}>ENVIAR A COCINA / BAR</Text>
             </TouchableOpacity>
-
+            {mesaSeleccionada.estado === "Listo" && (
+            <TouchableOpacity style={styles.freeBtn} onPress={liberarMesa}>
+              <Text style={styles.freeBtnText}>LIBERAR MESA</Text>
+            </TouchableOpacity>
+            )}
+            <View style={styles.dropdown}>
+              {productos.map((producto) => (
+                <TouchableOpacity
+                  key={producto.id}
+                  style={[
+                    styles.dropdownItem,
+                    productoSeleccionado?.id === producto.id && styles.dropdownItemActive,
+                  ]}
+                  onPress={() => setProductoSeleccionado(producto)}
+                >
+                  <Text style={styles.dropdownText}>
+                    {producto.nombre} - ${producto.precio.toLocaleString("es-CO")}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             <TouchableOpacity style={styles.addBtn} onPress={agregarItem}>
               <Text style={styles.addBtnText}>+ Agregar ítem al pedido</Text>
             </TouchableOpacity>
@@ -213,13 +418,76 @@ const handleLogout = () => {
             <Text style={[styles.navText, styles.navActive]}>PED{"\n"}Pedidos</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity>
+          <TouchableOpacity onPress={cargarHistorial}>
             <Text style={styles.navText}>HIS{"\n"}Historial</Text>
           </TouchableOpacity>
         </View>
       </View>
     );
   }
+
+  if (vista === "historial") {
+  return (
+    <View style={styles.container}>
+      <View style={styles.topBar}>
+        <View>
+          <Text style={styles.greetingText}>
+            Historial, <Text style={styles.userNameText}>{nombreUsuario}</Text>
+          </Text>
+          <Text style={styles.userEmailText}>
+            {user?.email || "mesero@lapampa.com"}
+          </Text>
+        </View>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>× Salir</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.body}>
+        <Text style={styles.sectionTitle}>HISTORIAL DE PEDIDOS</Text>
+
+        {historialPedidos.length === 0 ? (
+          <Text style={styles.itemArea}>No hay pedidos registrados.</Text>
+        ) : (
+          historialPedidos.map((pedido) => (
+            <View key={pedido.id} style={styles.orderCard}>
+              <Text style={styles.orderTitle}>
+                Mesa {pedido.mesaId} · {pedido.estado}
+              </Text>
+
+              <Text style={styles.itemArea}>
+                Mesero: {pedido.meseroNombre}
+              </Text>
+
+              <Text style={styles.itemArea}>
+                Productos: {pedido.productos?.length || 0}
+              </Text>
+
+              <Text style={styles.totalValue}>
+                ${pedido.total?.toLocaleString("es-CO")}
+              </Text>
+            </View>
+          ))
+        )}
+      </ScrollView>
+
+      <View style={styles.bottomNav}>
+        <TouchableOpacity onPress={() => setVista("mesas")}>
+          <Text style={styles.navText}>MES{"\n"}Mesas</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity>
+          <Text style={styles.navText}>PED{"\n"}Pedidos</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={cargarHistorial}>
+          <Text style={styles.navText}>HIS{"\n"}Historial</Text>
+        </TouchableOpacity>
+              </View>
+            </View>
+  );
+}
 
   return (
     <View style={styles.container}>
@@ -315,7 +583,7 @@ const handleLogout = () => {
           <Text style={styles.navText}>PED{"\n"}Pedidos</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity>
+        <TouchableOpacity onPress={cargarHistorial}>
           <Text style={styles.navText}>HIS{"\n"}Historial</Text>
         </TouchableOpacity>
       </View>
@@ -645,4 +913,72 @@ logoutButtonText: {
   navActive: {
     color: GOLD,
   },
+  itemActions: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 6,
+  marginTop: 6,
+},
+
+qtyButton: {
+  borderWidth: 1,
+  borderColor: BORDER,
+  borderRadius: 8,
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+},
+
+qtyButtonText: {
+  color: BROWN,
+  fontWeight: "bold",
+},
+
+deleteButton: {
+  borderWidth: 1,
+  borderColor: "#B00020",
+  borderRadius: 8,
+  paddingHorizontal: 8,
+  paddingVertical: 4,
+},
+
+deleteButtonText: {
+  color: "#B00020",
+  fontWeight: "bold",
+  fontSize: 11,
+},
+dropdown: {
+  marginBottom: 10,
+  borderWidth: 1,
+  borderColor: BORDER,
+  borderRadius: 10,
+  padding: 8,
+},
+
+dropdownItem: {
+  paddingVertical: 6,
+},
+
+dropdownItemActive: {
+  backgroundColor: "#F6E9BD",
+  borderRadius: 6,
+},
+
+dropdownText: {
+  color: BROWN,
+  fontSize: 12,
+},
+freeBtn: {
+  backgroundColor: GOLD,
+  paddingVertical: 15,
+  borderRadius: 10,
+  alignItems: "center",
+  marginBottom: 10,
+},
+
+freeBtnText: {
+  color: DARK,
+  fontSize: 16,
+  fontWeight: "bold",
+  letterSpacing: 2,
+},
 });
