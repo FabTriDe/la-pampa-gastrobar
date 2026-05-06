@@ -9,7 +9,7 @@ import { getFirestore } from "firebase/firestore";
 
 // ⚠️ REEMPLAZA ESTO CON TUS CREDENCIALES DE FIREBASE
 // Ve a Firebase Console → Proyecto → Configuración → SDK
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "",
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "",
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "demo-app",

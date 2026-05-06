@@ -13,6 +13,10 @@ import {
   RegisterClienteScreen,
   CrearMeseroScreen,
   AdminDashboard,
+  GestionarMeserosScreen,
+  GestionarMenuScreen,
+  AgregarProductosScreen,
+  ReportesScreen,
   MeseroModule,
   ClienteModule,
   CarritoScreen,
@@ -41,6 +45,16 @@ export default function AppNavigator() {
 
         {/* ── Admin ── */}
         <Stack.Screen name="CrearMesero" component={CrearMeseroScreen} />
+        <Stack.Screen
+          name="GestionarMeseros"
+          component={GestionarMeserosScreen}
+        />
+        <Stack.Screen name="GestionarMenuScreen" component={GestionarMenuScreen} />
+        <Stack.Screen
+          name="AgregarProductosScreen"
+          component={AgregarProductosScreen}
+        />
+        <Stack.Screen name="Reportes" component={ReportesScreen} />
         <Stack.Screen name="AdminDashboard" component={AdminDashboard} />
 
         {/* ── Mesero ── */}
