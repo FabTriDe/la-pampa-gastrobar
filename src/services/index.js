@@ -9,3 +9,4 @@ export { default as DomicilioService } from "./DomicilioService";
 export { default as PropinaService } from "./PropinaService";
 export { default as ReporteService } from "./ReporteService";
 export { default as MenuService } from "./MenuService";
+

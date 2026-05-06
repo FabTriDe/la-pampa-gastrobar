@@ -12,6 +12,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#1C0D03"
     },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La Pampa necesita acceso a tu galería para las fotos del menú.",
+          "cameraPermission": "La Pampa necesita acceso a tu cámara para tomar fotos del menú."
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": true
     },

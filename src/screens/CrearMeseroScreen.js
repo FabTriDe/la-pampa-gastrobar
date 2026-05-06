@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,9 +12,58 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { COLORS, BORDER_RADIUS } from "../theme";
+import { initializeApp, getApps } from "firebase/app";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc, Timestamp } from "firebase/firestore";
+import { db, firebaseConfig } from "../config/firebaseConfig";
+
+const getSecondaryAuth = () => {
+  const existing = getApps().find((a) => a.name === "Secondary");
+  const secondaryApp = existing || initializeApp(firebaseConfig, "Secondary");
+  return getAuth(secondaryApp);
+};
+
+// ─── Field fuera del componente para evitar pérdida de focus ───
+const Field = ({
+  label,
+  field,
+  placeholder,
+  keyboardType,
+  autoCapitalize,
+  right,
+  value,
+  onChangeText,
+  error,
+  editable,
+}) => (
+  <View style={styles.fieldGroup}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <View style={[styles.fieldInput, error && styles.fieldInputError]}>
+      <View style={styles.fieldIcon} />
+      <TextInput
+        style={styles.textInput}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.textPlaceholder}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType || "default"}
+        autoCapitalize={autoCapitalize || "sentences"}
+        autoCorrect={false}
+        editable={editable}
+      />
+      {right}
+    </View>
+    {error && <Text style={styles.errorText}>{error}</Text>}
+  </View>
+);
 
 export default function CrearMeseroScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [form, setForm] = useState({
     nombre: "",
     email: "",
@@ -26,11 +74,10 @@ export default function CrearMeseroScreen({ navigation }) {
   const [isLoading, setIsLoading] = useState(false);
 
   const updateField = (field, value) => {
-    setForm({ ...form, [field]: value });
-    if (errors[field]) setErrors({ ...errors, [field]: null });
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: null }));
   };
 
-  // ─── Validación ───
   const validate = () => {
     const e = {};
     if (!form.nombre.trim()) e.nombre = "El nombre es obligatorio";
@@ -39,9 +86,7 @@ export default function CrearMeseroScreen({ navigation }) {
     } else if (!/\S+@\S+\.\S+/.test(form.email)) {
       e.email = "Correo no válido";
     }
-    if (!form.telefono.trim()) {
-      e.telefono = "El teléfono es obligatorio";
-    }
+    if (!form.telefono.trim()) e.telefono = "El teléfono es obligatorio";
     if (!form.password) {
       e.password = "La contraseña es obligatoria";
     } else if (form.password.length < 6) {
@@ -51,67 +96,53 @@ export default function CrearMeseroScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
-  // ─── Crear mesero ───
   const handleCreate = async () => {
     if (!validate()) return;
     setIsLoading(true);
-
     try {
-      // TODO: Crear cuenta de mesero via Firebase Admin o Cloud Function
-      //
-      // OPCIÓN A — Firebase Admin SDK (desde un backend Node.js):
-      // const response = await fetch('https://tu-api.com/crear-mesero', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
-      //   body: JSON.stringify({ ...form, rol: 'mesero' }),
-      // });
-      //
-      // OPCIÓN B — Crear con createUserWithEmailAndPassword desde el admin
-      // (Nota: esto cierra la sesión del admin, hay que volver a loguearlo)
-      // const cred = await createUserWithEmailAndPassword(auth, form.email, form.password);
-      // await setDoc(doc(db, 'usuarios', cred.user.uid), {
-      //   nombre: form.nombre,
-      //   correo: form.email,
-      //   telefono: form.telefono,
-      //   rol: 'mesero',
-      //   creadoPor: adminUid,
-      //   creadoEn: serverTimestamp(),
-      //   activo: true,
-      // });
-      // // Re-autenticar admin...
-      //
-      // OPCIÓN C (recomendada) — Cloud Function que crea el usuario:
-      // const crearMesero = httpsCallable(functions, 'crearMesero');
-      // await crearMesero({ ...form });
+      const secondaryAuth = getSecondaryAuth();
 
-      await new Promise((r) => setTimeout(r, 1500));
+      const credential = await createUserWithEmailAndPassword(
+        secondaryAuth,
+        form.email,
+        form.password,
+      );
+
+      await setDoc(doc(db, "usuarios", credential.user.uid), {
+        id: credential.user.uid,
+        nombre: form.nombre,
+        correo: form.email,
+        telefono: form.telefono,
+        rol: "mesero",
+        activo: true,
+        creadoEn: Timestamp.now(),
+      });
+
+      await secondaryAuth.signOut();
 
       Alert.alert(
         "Mesero creado",
-        `La cuenta de ${form.nombre} ha sido creada.\n\nCredenciales:\nCorreo: ${form.email}\nContraseña: ${form.password}\n\nComparte estos datos con el mesero.`,
+        `Cuenta de ${form.nombre} creada.\n\nCorreo: ${form.email}\nContraseña: ${form.password}\n\nComparte estos datos con el mesero.`,
         [
           {
             text: "Crear otro",
             onPress: () =>
               setForm({ nombre: "", email: "", telefono: "", password: "" }),
           },
-          {
-            text: "Volver al panel",
-            onPress: () => navigation.goBack(),
-          },
+          { text: "Volver al panel", onPress: () => navigation.goBack() },
         ],
       );
     } catch (error) {
       let msg = "Error al crear la cuenta";
       if (error.code === "auth/email-already-in-use")
         msg = "Ya existe una cuenta con este correo";
+      else if (error.code === "auth/invalid-email") msg = "Correo no válido";
       Alert.alert("Error", msg);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // ─── Generar contraseña aleatoria ───
   const generatePassword = () => {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
     let pwd = "";
@@ -121,40 +152,8 @@ export default function CrearMeseroScreen({ navigation }) {
     updateField("password", pwd);
   };
 
-  // ─── Campo ───
-  const Field = ({
-    label,
-    field,
-    placeholder,
-    keyboardType,
-    autoCapitalize,
-    right,
-  }) => (
-    <View style={styles.fieldGroup}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <View
-        style={[styles.fieldInput, errors[field] && styles.fieldInputError]}
-      >
-        <View style={styles.fieldIcon} />
-        <TextInput
-          style={styles.textInput}
-          placeholder={placeholder}
-          placeholderTextColor={COLORS.textPlaceholder}
-          value={form[field]}
-          onChangeText={(v) => updateField(field, v)}
-          keyboardType={keyboardType || "default"}
-          autoCapitalize={autoCapitalize || "sentences"}
-          autoCorrect={false}
-          editable={!isLoading}
-        />
-        {right}
-      </View>
-      {errors[field] && <Text style={styles.errorText}>{errors[field]}</Text>}
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["bottom"]}>
       <StatusBar
         barStyle="light-content"
         backgroundColor={COLORS.backgroundDark}
@@ -162,16 +161,13 @@ export default function CrearMeseroScreen({ navigation }) {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        enabled={true}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          scrollEnabled={true}
         >
-          {/* Top bar estilo admin */}
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { paddingTop: insets.top + 14 }]}>
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backArrow}
@@ -184,9 +180,7 @@ export default function CrearMeseroScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Contenido */}
           <View style={styles.content}>
-            {/* Info card */}
             <View style={styles.infoCard}>
               <View style={styles.infoDot} />
               <Text style={styles.infoText}>
@@ -202,6 +196,10 @@ export default function CrearMeseroScreen({ navigation }) {
               field="nombre"
               placeholder="Ej: Diana Dorado"
               autoCapitalize="words"
+              value={form.nombre}
+              onChangeText={(v) => updateField("nombre", v)}
+              error={errors.nombre}
+              editable={!isLoading}
             />
             <Field
               label="CORREO ELECTRÓNICO"
@@ -209,12 +207,20 @@ export default function CrearMeseroScreen({ navigation }) {
               placeholder="mesero@lapampa.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              value={form.email}
+              onChangeText={(v) => updateField("email", v)}
+              error={errors.email}
+              editable={!isLoading}
             />
             <Field
               label="TELÉFONO"
               field="telefono"
               placeholder="300 123 4567"
               keyboardType="phone-pad"
+              value={form.telefono}
+              onChangeText={(v) => updateField("telefono", v)}
+              error={errors.telefono}
+              editable={!isLoading}
             />
 
             <Text style={styles.sectionLabel}>CREDENCIALES DE ACCESO</Text>
@@ -223,6 +229,10 @@ export default function CrearMeseroScreen({ navigation }) {
               label="CONTRASEÑA INICIAL"
               field="password"
               placeholder="Mínimo 6 caracteres"
+              value={form.password}
+              onChangeText={(v) => updateField("password", v)}
+              error={errors.password}
+              editable={!isLoading}
               right={
                 <TouchableOpacity
                   onPress={generatePassword}
@@ -240,7 +250,6 @@ export default function CrearMeseroScreen({ navigation }) {
               </View>
             )}
 
-            {/* Crear button */}
             <TouchableOpacity
               style={[styles.createBtn, isLoading && styles.createBtnDisabled]}
               onPress={handleCreate}
@@ -261,17 +270,15 @@ export default function CrearMeseroScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface },
+  container: { flex: 1, backgroundColor: COLORS.surface, paddingBottom: 8 },
   flex: { flex: 1 },
   scrollContent: { flexGrow: 1 },
-
-  // Top bar
   topBar: {
     backgroundColor: COLORS.backgroundDark,
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingBottom: 14,
     gap: 10,
   },
   backArrow: {
@@ -282,11 +289,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  backArrowText: {
-    fontSize: 18,
-    color: COLORS.primary,
-    fontWeight: "700",
-  },
+  backArrowText: { fontSize: 18, color: COLORS.primary, fontWeight: "700" },
   topInfo: {},
   topTitle: {
     fontSize: 14,
@@ -294,19 +297,8 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     letterSpacing: 1.5,
   },
-  topSubtitle: {
-    fontSize: 9,
-    color: COLORS.primaryBorder,
-  },
-
-  // Content
-  content: {
-    flex: 1,
-    padding: 16,
-    gap: 12,
-  },
-
-  // Info card
+  topSubtitle: { fontSize: 9, color: COLORS.primaryBorder },
+  content: { flex: 1, padding: 16, gap: 12 },
   infoCard: {
     flexDirection: "row",
     backgroundColor: COLORS.surfaceGold,
@@ -322,13 +314,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     marginTop: 3,
   },
-  infoText: {
-    flex: 1,
-    fontSize: 11,
-    color: COLORS.textLabel,
-    lineHeight: 16,
-  },
-
+  infoText: { flex: 1, fontSize: 11, color: COLORS.textLabel, lineHeight: 16 },
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",
@@ -336,8 +322,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     marginTop: 4,
   },
-
-  // Fields
   fieldGroup: { gap: 3 },
   fieldLabel: {
     fontSize: 9,
@@ -370,21 +354,13 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   errorText: { fontSize: 9, color: COLORS.error, marginLeft: 4 },
-
-  // Generate button
   genBtn: {
     backgroundColor: COLORS.primaryLight,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
   },
-  genBtnText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: COLORS.textInactive,
-  },
-
-  // Password preview
+  genBtnText: { fontSize: 10, fontWeight: "700", color: COLORS.textInactive },
   passwordPreview: {
     flexDirection: "row",
     backgroundColor: COLORS.backgroundDark,
@@ -404,8 +380,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1,
   },
-
-  // Create button (estilo oscuro del admin, como el "ENVIAR A COCINA / BAR")
   createBtn: {
     backgroundColor: COLORS.backgroundDark,
     borderRadius: BORDER_RADIUS.md,
